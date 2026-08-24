@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Biblical Hebrew Interlinear Practice</title>
+<style>
+  :root {
+    --bg: #fbf7ef;
+    --ink: #2b2620;
+    --accent: #7a5c3e;
+    --good: #2e7d32;
+    --good-bg: #e8f5e9;
+    --bad: #c62828;
+    --bad-bg: #fdecea;
+    --box: #ffffff;
+    --border: #d8cdb8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 60px;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Georgia", "Times New Roman", serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 { font-size: 1.3rem; margin: 0 0 2px; text-align: center; }
+  .ref { color: var(--accent); font-weight: bold; margin-bottom: 4px; text-align: center; min-height: 1.2em; }
+  .sub {
+    font-size: 0.85rem; color: #766c5c; margin-bottom: 18px;
+    text-align: center; max-width: 560px;
+  }
+  .lookup-row {
+    display: flex; gap: 8px; margin-bottom: 6px; width: 100%; max-width: 460px; justify-content: center;
+  }
+  .lookup-row input {
+    flex: 1; font-family: inherit; font-size: 0.9rem; padding: 8px 12px;
+    border-radius: 8px; border: 1.5px solid var(--border); background: var(--box); color: var(--ink);
+  }
+  .lookup-row input:focus { outline: none; border-color: var(--accent); }
+  .lookup-row button {
+    font-family: inherit; font-size: 0.85rem; padding: 8px 16px; border-radius: 8px;
+    border: none; background: var(--accent); color: white; cursor: pointer; white-space: nowrap;
+  }
+  .lookup-row button:disabled { opacity: 0.6; cursor: default; }
+  .lookup-msg {
+    font-size: 0.78rem; color: var(--bad); margin-bottom: 6px; min-height: 14px; text-align: center; max-width: 500px;
+  }
+  .range-hint {
+    font-size: 0.72rem; color: #a99a7d; margin-bottom: 16px; text-align: center; max-width: 500px;
+  }
+  .board {
+    background: var(--box); border: 1px solid var(--border); border-radius: 12px;
+    padding: 28px 22px; max-width: 900px; width: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  }
+  .verse-block { margin-bottom: 22px; }
+  .verse-num-label {
+    direction: rtl; text-align: right; font-size: 0.75rem; color: var(--accent);
+    margin-bottom: 4px; font-weight: bold;
+  }
+  .verse-line {
+    direction: rtl; display: flex; flex-wrap: wrap; gap: 10px 14px; justify-content: flex-start;
+  }
+  .word-unit { display: flex; flex-direction: column; align-items: center; min-width: 92px; }
+  .word-unit input {
+    width: 100%; text-align: center; direction: ltr; font-family: "Georgia", serif; font-size: 0.85rem;
+    padding: 5px 4px; border: 1.5px solid var(--border); border-radius: 6px; margin-bottom: 6px;
+    background: #fffef9; color: var(--ink);
+  }
+  .word-unit input:focus { outline: none; border-color: var(--accent); }
+  .word-unit input.correct { background: var(--good-bg); border-color: var(--good); color: var(--good); font-weight: bold; }
+  .word-unit input.incorrect { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
+  .hebrew-word { font-size: 1.7rem; line-height: 1.6; white-space: nowrap; }
+  .reveal { font-size: 0.72rem; color: var(--accent); margin-top: 3px; min-height: 12px; text-align: center; max-width: 100px; }
+  .controls { display: flex; justify-content: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+  .controls button {
+    font-family: inherit; font-size: 0.85rem; padding: 8px 18px; border-radius: 8px;
+    border: none; cursor: pointer; background: var(--accent); color: white;
+  }
+  .controls button.secondary { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
+  .score { text-align: center; margin-top: 14px; font-size: 0.9rem; color: #766c5c; }
+  .loading { text-align: center; color: #a99a7d; font-size: 0.9rem; padding: 20px; }
+</style>
+</head>
+<body>
+
+<h1>Interlinear Hebrew Practice</h1>
+<div class="ref" id="refLabel">Type a citation to begin</div>
+<div class="sub">Type the English gloss for each Hebrew word, then press <b>Enter</b>. Word order runs right‑to‑left, matching the Hebrew.</div>
+
+<div class="lookup-row">
+  <input type="text" id="citationInput" placeholder="e.g. Genesis 1:1 or Genesis 1:1-5" autocomplete="off">
+  <button id="lookupBtn">Load</button>
+</div>
+<div class="lookup-msg" id="lookupMsg"></div>
+<div class="range-hint">Covers the whole Hebrew Bible (Tanakh). Single verses or short ranges within one chapter, e.g. "Psalm 23:1-6".</div>
+
+<div class="board" id="board" style="display:none;">
+  <div id="verseContainer"></div>
+  <div class="controls">
+    <button id="checkAllBtn">Check remaining</button>
+    <button class="secondary" id="resetBtn">Reset</button>
+  </div>
+  <div class="score" id="scoreLine"></div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------
+// Data: fetched on demand from ./data/<book>.json (one file per book,
+// generated from STEPBible TAHOT — Tyndale House, CC BY 4.0).
+// Structure per book file: { "<chapter>": { "<verse>": [ {hebrew, answers[]}, ... ] } }
+// ---------------------------------------------------------------------
+
+const BOOK_ALIASES = {
+  "genesis":"genesis","gen":"genesis","gn":"genesis",
+  "exodus":"exodus","exo":"exodus","ex":"exodus",
+  "leviticus":"leviticus","lev":"leviticus","lv":"leviticus",
+  "numbers":"numbers","num":"numbers","nu":"numbers","nm":"numbers",
+  "deuteronomy":"deuteronomy","deut":"deuteronomy","deu":"deuteronomy","dt":"deuteronomy",
+  "joshua":"joshua","josh":"joshua","jos":"joshua",
+  "judges":"judges","judg":"judges","jdg":"judges",
+  "ruth":"ruth","rut":"ruth","ru":"ruth",
+  "1samuel":"1samuel","1sam":"1samuel","1sa":"1samuel","isamuel":"1samuel",
+  "2samuel":"2samuel","2sam":"2samuel","2sa":"2samuel","iisamuel":"2samuel",
+  "1kings":"1kings","1kg":"1kings","1ki":"1kings","ikings":"1kings",
+  "2kings":"2kings","2kg":"2kings","2ki":"2kings","iikings":"2kings",
+  "1chronicles":"1chronicles","1chron":"1chronicles","1ch":"1chronicles","ichronicles":"1chronicles",
+  "2chronicles":"2chronicles","2chron":"2chronicles","2ch":"2chronicles","iichronicles":"2chronicles",
+  "ezra":"ezra","ezr":"ezra",
+  "nehemiah":"nehemiah","neh":"nehemiah",
+  "esther":"esther","est":"esther",
+  "job":"job",
+  "psalm":"psalm","psalms":"psalm","ps":"psalm","psa":"psalm",
+  "proverbs":"proverbs","prov":"proverbs","pro":"proverbs","pr":"proverbs",
+  "ecclesiastes":"ecclesiastes","eccl":"ecclesiastes","ecc":"ecclesiastes","qoheleth":"ecclesiastes",
+  "songofsongs":"songofsongs","song":"songofsongs","sng":"songofsongs","canticles":"songofsongs","songofsolomon":"songofsongs",
+  "isaiah":"isaiah","isa":"isaiah",
+  "jeremiah":"jeremiah","jer":"jeremiah",
+  "lamentations":"lamentations","lam":"lamentations",
+  "ezekiel":"ezekiel","ezek":"ezekiel","ezk":"ezekiel",
+  "daniel":"daniel","dan":"daniel",
+  "hosea":"hosea","hos":"hosea",
+  "joel":"joel","jol":"joel",
+  "amos":"amos","amo":"amos",
+  "obadiah":"obadiah","oba":"obadiah","obad":"obadiah",
+  "jonah":"jonah","jon":"jonah",
+  "micah":"micah","mic":"micah",
+  "nahum":"nahum","nah":"nahum","nam":"nahum",
+  "habakkuk":"habakkuk","hab":"habakkuk",
+  "zephaniah":"zephaniah","zeph":"zephaniah","zep":"zephaniah",
+  "haggai":"haggai","hag":"haggai",
+  "zechariah":"zechariah","zech":"zechariah","zec":"zechariah",
+  "malachi":"malachi","mal":"malachi"
+};
+
+const bookCache = {}; // book_key -> parsed JSON (cached after first fetch)
+let currentVerses = []; // array of {ref, words}
+
+const refLabel = document.getElementById('refLabel');
+const lookupMsg = document.getElementById('lookupMsg');
+const board = document.getElementById('board');
+const verseContainer = document.getElementById('verseContainer');
+const scoreLine = document.getElementById('scoreLine');
+const lookupBtn = document.getElementById('lookupBtn');
+
+function normalize(str) {
+  return str.toLowerCase().trim().replace(/[.,;:!?'"()]/g, '').replace(/\s+/g, ' ');
+}
+
+// Parses "Genesis 1:1", "gen 1:1-5", "1 Samuel 2:3" etc.
+function parseCitation(raw) {
+  const cleaned = raw.trim().toLowerCase();
+  const m = cleaned.match(/^([1-3]?\s?[a-z]+)\s*(\d+)\s*:\s*(\d+)(?:\s*-\s*(\d+))?$/);
+  if (!m) return null;
+  const bookRaw = m[1].replace(/\s+/g, '');
+  const bookKey = BOOK_ALIASES[bookRaw];
+  if (!bookKey) return null;
+  const chapter = parseInt(m[2], 10);
+  const startVerse = parseInt(m[3], 10);
+  const endVerse = m[4] ? parseInt(m[4], 10) : startVerse;
+  return { bookKey, chapter, startVerse, endVerse };
+}
+
+async function loadBook(bookKey) {
+  if (bookCache[bookKey]) return bookCache[bookKey];
+  const res = await fetch(`./data/${bookKey}.json`);
+  if (!res.ok) throw new Error(`Could not load data for "${bookKey}"`);
+  const json = await res.json();
+  bookCache[bookKey] = json;
+  return json;
+}
+
+async function lookupVerse(raw) {
+  lookupMsg.textContent = '';
+  const parsed = parseCitation(raw);
+  if (!parsed) {
+    lookupMsg.textContent = 'Couldn\'t read that citation. Try "Genesis 1:1" or "Genesis 1:1-5".';
+    return;
+  }
+  const { bookKey, chapter, startVerse, endVerse } = parsed;
+  if (endVerse < startVerse || endVerse - startVerse > 30) {
+    lookupMsg.textContent = 'Please request a range of 30 verses or fewer.';
+    return;
+  }
+
+  lookupBtn.disabled = true;
+  lookupBtn.textContent = 'Loading…';
+  try {
+    const bookData = await loadBook(bookKey);
+    const chapData = bookData[String(chapter)];
+    if (!chapData) {
+      lookupMsg.textContent = `That chapter wasn't found in ${bookKey}.`;
+      return;
+    }
+    const bookLabel = raw.trim().split(/\s+\d/)[0]; // preserve user's book capitalization roughly
+    const verses = [];
+    if (startVerse === 1 && chapData['0']) {
+      verses.push({ ref: `${bookKey} ${chapter} (title)`, words: chapData['0'], isTitle: true });
+    }
+    for (let v = startVerse; v <= endVerse; v++) {
+      const words = chapData[String(v)];
+      if (words) {
+        verses.push({ ref: `${bookKey} ${chapter}:${v}`, words });
+      }
+    }
+    if (verses.length === 0) {
+      lookupMsg.textContent = 'No verses found in that range.';
+      return;
+    }
+    currentVerses = verses;
+    renderAll();
+  } catch (err) {
+    lookupMsg.textContent = 'Error loading that book\'s data: ' + err.message;
+  } finally {
+    lookupBtn.disabled = false;
+    lookupBtn.textContent = 'Load';
+  }
+}
+
+function renderAll() {
+  board.style.display = 'block';
+  verseContainer.innerHTML = '';
+  const nonTitleVerses = currentVerses.filter(v => !v.isTitle);
+  const first = nonTitleVerses[0].ref;
+  const last = nonTitleVerses[nonTitleVerses.length - 1].ref;
+  refLabel.textContent = nonTitleVerses.length > 1 ? `${first} – ${last.split(' ').pop()}` : first;
+
+  currentVerses.forEach((verse, vIdx) => {
+    const block = document.createElement('div');
+    block.className = 'verse-block';
+
+    if (currentVerses.length > 1 && !verse.isTitle) {
+      const label = document.createElement('div');
+      label.className = 'verse-num-label';
+      label.textContent = verse.ref;
+      block.appendChild(label);
+    } else if (verse.isTitle) {
+      const label = document.createElement('div');
+      label.className = 'verse-num-label';
+      label.style.fontStyle = 'italic';
+      label.textContent = 'Title';
+      block.appendChild(label);
+    }
+
+    const line = document.createElement('div');
+    line.className = 'verse-line';
+
+    verse.words.forEach((w, wIdx) => {
+      const unit = document.createElement('div');
+      unit.className = 'word-unit';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = '…';
+      input.autocomplete = 'off';
+      input.spellcheck = false;
+      input.dataset.vIdx = vIdx;
+      input.dataset.wIdx = wIdx;
+
+      const hebrewDiv = document.createElement('div');
+      hebrewDiv.className = 'hebrew-word';
+      hebrewDiv.textContent = w.hebrew;
+
+      const revealDiv = document.createElement('div');
+      revealDiv.className = 'reveal';
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          checkWord(input, revealDiv, w);
+          focusNext(input);
+        }
+      });
+
+      unit.appendChild(input);
+      unit.appendChild(hebrewDiv);
+      unit.appendChild(revealDiv);
+      line.appendChild(unit);
+    });
+
+    block.appendChild(line);
+    verseContainer.appendChild(block);
+  });
+
+  updateScore();
+  const firstInput = verseContainer.querySelector('input');
+  if (firstInput) firstInput.focus();
+}
+
+function checkWord(input, revealDiv, wordData) {
+  const userAns = normalize(input.value);
+  const isCorrect = wordData.answers.some(a => normalize(a) === userAns);
+  input.classList.remove('correct', 'incorrect');
+  if (isCorrect) {
+    input.classList.add('correct');
+    revealDiv.textContent = '✓';
+    revealDiv.style.color = 'var(--good)';
+  } else {
+    input.classList.add('incorrect');
+    revealDiv.textContent = wordData.answers[0];
+    revealDiv.style.color = 'var(--bad)';
+  }
+  input.dataset.checked = 'true';
+  input.dataset.correct = isCorrect ? 'true' : 'false';
+  updateScore();
+}
+
+function focusNext(currentInput) {
+  const inputs = Array.from(verseContainer.querySelectorAll('input'));
+  const idx = inputs.indexOf(currentInput);
+  const next = inputs[idx + 1];
+  if (next) next.focus();
+}
+
+function updateScore() {
+  const inputs = Array.from(verseContainer.querySelectorAll('input'));
+  const checked = inputs.filter(i => i.dataset.checked === 'true');
+  const right = checked.filter(i => i.dataset.correct === 'true');
+  const total = inputs.length;
+  scoreLine.textContent = `${right.length} / ${total} correct so far (${checked.length} checked)`;
+}
+
+document.getElementById('checkAllBtn').addEventListener('click', () => {
+  const units = verseContainer.querySelectorAll('.word-unit');
+  units.forEach((unit) => {
+    const input = unit.querySelector('input');
+    if (input.dataset.checked !== 'true') {
+      const revealDiv = unit.querySelector('.reveal');
+      const vIdx = parseInt(input.dataset.vIdx, 10);
+      const wIdx = parseInt(input.dataset.wIdx, 10);
+      const wordData = currentVerses[vIdx].words[wIdx];
+      checkWord(input, revealDiv, wordData);
+    }
+  });
+});
+
+document.getElementById('resetBtn').addEventListener('click', renderAll);
+
+lookupBtn.addEventListener('click', () => {
+  lookupVerse(document.getElementById('citationInput').value);
+});
+document.getElementById('citationInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    lookupVerse(e.target.value);
+  }
+});
+
+// Load a starting example
+lookupVerse('Genesis 1:1-5');
+document.getElementById('citationInput').value = 'Genesis 1:1-5';
+</script>
+</body>
+</html>
