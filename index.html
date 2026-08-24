@@ -100,8 +100,10 @@
 <div class="board" id="board" style="display:none;">
   <div id="verseContainer"></div>
   <div class="controls">
+    <button class="secondary" id="prevBtn">◀ Previous verse</button>
     <button id="checkAllBtn">Check remaining</button>
     <button class="secondary" id="resetBtn">Reset</button>
+    <button class="secondary" id="nextBtn">Next verse ▶</button>
   </div>
   <div class="score" id="scoreLine"></div>
 </div>
@@ -155,8 +157,17 @@ const BOOK_ALIASES = {
   "malachi":"malachi","mal":"malachi"
 };
 
+const BOOK_ORDER = [
+  "genesis","exodus","leviticus","numbers","deuteronomy",
+  "joshua","judges","ruth","1samuel","2samuel","1kings","2kings",
+  "1chronicles","2chronicles","ezra","nehemiah","esther","job",
+  "psalm","proverbs","ecclesiastes","songofsongs","isaiah","jeremiah",
+  "lamentations","ezekiel","daniel","hosea","joel","amos","obadiah",
+  "jonah","micah","nahum","habakkuk","zephaniah","haggai","zechariah","malachi"
+];
+
 const bookCache = {}; // book_key -> parsed JSON (cached after first fetch)
-let currentVerses = []; // array of {ref, words}
+let currentVerses = []; // array of {ref, words, bookKey, chapter, verseNum, isTitle}
 
 const refLabel = document.getElementById('refLabel');
 const lookupMsg = document.getElementById('lookupMsg');
@@ -217,12 +228,12 @@ async function lookupVerse(raw) {
     const bookLabel = raw.trim().split(/\s+\d/)[0]; // preserve user's book capitalization roughly
     const verses = [];
     if (startVerse === 1 && chapData['0']) {
-      verses.push({ ref: `${bookKey} ${chapter} (title)`, words: chapData['0'], isTitle: true });
+      verses.push({ ref: `${bookKey} ${chapter} (title)`, words: chapData['0'], isTitle: true, bookKey, chapter, verseNum: 0 });
     }
     for (let v = startVerse; v <= endVerse; v++) {
       const words = chapData[String(v)];
       if (words) {
-        verses.push({ ref: `${bookKey} ${chapter}:${v}`, words });
+        verses.push({ ref: `${bookKey} ${chapter}:${v}`, words, bookKey, chapter, verseNum: v });
       }
     }
     if (verses.length === 0) {
@@ -355,6 +366,84 @@ document.getElementById('checkAllBtn').addEventListener('click', () => {
     }
   });
 });
+
+function maxChapter(bookData) {
+  return Math.max(...Object.keys(bookData).map(Number));
+}
+
+function maxVerse(bookData, chapter) {
+  const chapData = bookData[String(chapter)];
+  if (!chapData) return 0;
+  const nums = Object.keys(chapData).map(Number).filter(n => n > 0);
+  return nums.length ? Math.max(...nums) : 0;
+}
+
+async function showSingleVerse(bookKey, chapter, verseNum) {
+  const bookData = await loadBook(bookKey);
+  const chapData = bookData[String(chapter)];
+  if (!chapData || !chapData[String(verseNum)]) {
+    lookupMsg.textContent = `Couldn't find ${bookKey} ${chapter}:${verseNum}.`;
+    return;
+  }
+  const verses = [];
+  if (verseNum === 1 && chapData['0']) {
+    verses.push({ ref: `${bookKey} ${chapter} (title)`, words: chapData['0'], isTitle: true, bookKey, chapter, verseNum: 0 });
+  }
+  verses.push({ ref: `${bookKey} ${chapter}:${verseNum}`, words: chapData[String(verseNum)], bookKey, chapter, verseNum });
+  currentVerses = verses;
+  lookupMsg.textContent = '';
+  document.getElementById('citationInput').value = `${bookKey} ${chapter}:${verseNum}`;
+  renderAll();
+}
+
+async function goToAdjacentVerse(direction) {
+  if (currentVerses.length === 0) return;
+  const nonTitle = currentVerses.filter(v => !v.isTitle);
+  const anchor = direction === 1 ? nonTitle[nonTitle.length - 1] : nonTitle[0];
+  let { bookKey, chapter, verseNum } = anchor;
+  let bookData = await loadBook(bookKey);
+
+  verseNum += direction;
+
+  if (direction === 1) {
+    // moving forward: does verseNum still exist in this chapter?
+    if (!bookData[String(chapter)] || !bookData[String(chapter)][String(verseNum)]) {
+      chapter += 1;
+      if (!bookData[String(chapter)]) {
+        const nextIdx = BOOK_ORDER.indexOf(bookKey) + 1;
+        if (nextIdx >= BOOK_ORDER.length) {
+          lookupMsg.textContent = "You've reached the end of the Tanakh (Malachi).";
+          return;
+        }
+        bookKey = BOOK_ORDER[nextIdx];
+        bookData = await loadBook(bookKey);
+        chapter = 1;
+      }
+      verseNum = 1;
+    }
+  } else {
+    // moving backward
+    if (verseNum < 1) {
+      chapter -= 1;
+      if (chapter < 1) {
+        const prevIdx = BOOK_ORDER.indexOf(bookKey) - 1;
+        if (prevIdx < 0) {
+          lookupMsg.textContent = "You're at the start of the Tanakh (Genesis 1:1).";
+          return;
+        }
+        bookKey = BOOK_ORDER[prevIdx];
+        bookData = await loadBook(bookKey);
+        chapter = maxChapter(bookData);
+      }
+      verseNum = maxVerse(bookData, chapter);
+    }
+  }
+
+  await showSingleVerse(bookKey, chapter, verseNum);
+}
+
+document.getElementById('nextBtn').addEventListener('click', () => goToAdjacentVerse(1));
+document.getElementById('prevBtn').addEventListener('click', () => goToAdjacentVerse(-1));
 
 document.getElementById('resetBtn').addEventListener('click', renderAll);
 
