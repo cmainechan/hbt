@@ -177,7 +177,10 @@ const scoreLine = document.getElementById('scoreLine');
 const lookupBtn = document.getElementById('lookupBtn');
 
 function normalize(str) {
-  return str.toLowerCase().trim().replace(/[.,;:!?'"()]/g, '').replace(/\s+/g, ' ');
+  let s = str.toLowerCase().trim().replace(/[.,;:!?'"()]/g, '').replace(/\s+/g, ' ');
+  // article flexibility: "the heavens" and "heavens" are treated as equivalent
+  s = s.replace(/^(the|a|an)\s+/, '');
+  return s;
 }
 
 // Parses "Genesis 1:1", "gen 1:1-5", "1 Samuel 2:3" etc.
