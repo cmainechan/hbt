@@ -74,6 +74,16 @@
   .word-unit input.incorrect { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
   .hebrew-word { font-size: 1.7rem; line-height: 1.6; white-space: nowrap; }
   .reveal { font-size: 0.72rem; color: var(--accent); margin-top: 3px; min-height: 12px; text-align: center; max-width: 100px; }
+  .hint-btn {
+    width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border);
+    background: #fdf9f1; color: #a99a7d; font-size: 0.68rem; line-height: 1;
+    cursor: pointer; margin-bottom: 4px; padding: 0;
+  }
+  .hint-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .grammar-line {
+    font-size: 0.65rem; font-style: italic; color: #8a7f6a; margin-top: 2px;
+    text-align: center; max-width: 110px; line-height: 1.3; min-height: 0;
+  }
   .controls { display: flex; justify-content: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
   .controls button {
     font-family: inherit; font-size: 0.85rem; padding: 8px 18px; border-radius: 8px;
@@ -293,6 +303,12 @@ function renderAll() {
       input.dataset.vIdx = vIdx;
       input.dataset.wIdx = wIdx;
 
+      const hintBtn = document.createElement('button');
+      hintBtn.type = 'button';
+      hintBtn.className = 'hint-btn';
+      hintBtn.textContent = '?';
+      hintBtn.title = 'Show grammar hint';
+
       const hebrewDiv = document.createElement('div');
       hebrewDiv.className = 'hebrew-word';
       hebrewDiv.textContent = w.hebrew;
@@ -300,17 +316,28 @@ function renderAll() {
       const revealDiv = document.createElement('div');
       revealDiv.className = 'reveal';
 
+      const grammarDiv = document.createElement('div');
+      grammarDiv.className = 'grammar-line';
+
+      hintBtn.addEventListener('click', () => {
+        grammarDiv.textContent = w.grammar || '(no grammar data)';
+        grammarDiv.classList.add('hint-shown');
+        hintBtn.style.visibility = 'hidden';
+      });
+
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          checkWord(input, revealDiv, w);
+          checkWord(input, revealDiv, w, grammarDiv, hintBtn);
           focusNext(input);
         }
       });
 
+      unit.appendChild(hintBtn);
       unit.appendChild(input);
       unit.appendChild(hebrewDiv);
       unit.appendChild(revealDiv);
+      unit.appendChild(grammarDiv);
       line.appendChild(unit);
     });
 
@@ -323,7 +350,7 @@ function renderAll() {
   if (firstInput) firstInput.focus();
 }
 
-function checkWord(input, revealDiv, wordData) {
+function checkWord(input, revealDiv, wordData, grammarDiv, hintBtn) {
   const userAns = normalize(input.value);
   const isCorrect = wordData.answers.some(a => normalize(a) === userAns);
   input.classList.remove('correct', 'incorrect');
@@ -336,6 +363,13 @@ function checkWord(input, revealDiv, wordData) {
     revealDiv.textContent = wordData.answers[0];
     revealDiv.style.color = 'var(--bad)';
   }
+  // always show the grammar hint once a word is checked, whether or not
+  // the student asked for it beforehand
+  if (grammarDiv && !grammarDiv.classList.contains('hint-shown')) {
+    grammarDiv.textContent = wordData.grammar || '(no grammar data)';
+    grammarDiv.classList.add('hint-shown');
+  }
+  if (hintBtn) hintBtn.style.visibility = 'hidden';
   input.dataset.checked = 'true';
   input.dataset.correct = isCorrect ? 'true' : 'false';
   updateScore();
@@ -362,10 +396,12 @@ document.getElementById('checkAllBtn').addEventListener('click', () => {
     const input = unit.querySelector('input');
     if (input.dataset.checked !== 'true') {
       const revealDiv = unit.querySelector('.reveal');
+      const grammarDiv = unit.querySelector('.grammar-line');
+      const hintBtn = unit.querySelector('.hint-btn');
       const vIdx = parseInt(input.dataset.vIdx, 10);
       const wIdx = parseInt(input.dataset.wIdx, 10);
       const wordData = currentVerses[vIdx].words[wIdx];
-      checkWord(input, revealDiv, wordData);
+      checkWord(input, revealDiv, wordData, grammarDiv, hintBtn);
     }
   });
 });
