@@ -77,13 +77,16 @@
   .hint-btn {
     width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border);
     background: #fdf9f1; color: #a99a7d; font-size: 0.68rem; line-height: 1;
-    cursor: pointer; margin-bottom: 4px; padding: 0;
+    cursor: pointer; padding: 0;
   }
   .hint-btn:hover { border-color: var(--accent); color: var(--accent); }
   .grammar-line {
-    font-size: 0.65rem; font-style: italic; color: #8a7f6a; margin-top: 2px;
-    text-align: center; max-width: 110px; line-height: 1.3; min-height: 0;
+    font-size: 0.68rem; font-variant-caps: small-caps; letter-spacing: 0.02em;
+    color: #8a7f6a; margin-top: 4px; text-align: center; max-width: 120px;
+    line-height: 1.3; min-height: 18px; white-space: nowrap;
+    display: flex; align-items: center; justify-content: center;
   }
+  .grammar-line.hint-shown { white-space: normal; }
   .controls { display: flex; justify-content: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
   .controls button {
     font-family: inherit; font-size: 0.85rem; padding: 8px 18px; border-radius: 8px;
@@ -303,12 +306,6 @@ function renderAll() {
       input.dataset.vIdx = vIdx;
       input.dataset.wIdx = wIdx;
 
-      const hintBtn = document.createElement('button');
-      hintBtn.type = 'button';
-      hintBtn.className = 'hint-btn';
-      hintBtn.textContent = '?';
-      hintBtn.title = 'Show grammar hint';
-
       const hebrewDiv = document.createElement('div');
       hebrewDiv.className = 'hebrew-word';
       hebrewDiv.textContent = w.hebrew;
@@ -319,10 +316,16 @@ function renderAll() {
       const grammarDiv = document.createElement('div');
       grammarDiv.className = 'grammar-line';
 
+      const hintBtn = document.createElement('button');
+      hintBtn.type = 'button';
+      hintBtn.className = 'hint-btn';
+      hintBtn.textContent = '?';
+      hintBtn.title = 'Show grammar hint';
+      grammarDiv.appendChild(hintBtn);
+
       hintBtn.addEventListener('click', () => {
         grammarDiv.textContent = w.grammar || '(no grammar data)';
         grammarDiv.classList.add('hint-shown');
-        hintBtn.style.visibility = 'hidden';
       });
 
       input.addEventListener('keydown', (e) => {
@@ -333,7 +336,6 @@ function renderAll() {
         }
       });
 
-      unit.appendChild(hintBtn);
       unit.appendChild(input);
       unit.appendChild(hebrewDiv);
       unit.appendChild(revealDiv);
@@ -369,7 +371,6 @@ function checkWord(input, revealDiv, wordData, grammarDiv, hintBtn) {
     grammarDiv.textContent = wordData.grammar || '(no grammar data)';
     grammarDiv.classList.add('hint-shown');
   }
-  if (hintBtn) hintBtn.style.visibility = 'hidden';
   input.dataset.checked = 'true';
   input.dataset.correct = isCorrect ? 'true' : 'false';
   updateScore();
