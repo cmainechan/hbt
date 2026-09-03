@@ -88,19 +88,11 @@
   }
   .strongs-line a:hover { border-bottom-style: solid; }
   .reveal { font-size: 0.72rem; color: var(--accent); margin-top: 3px; min-height: 12px; text-align: center; max-width: 100px; }
-  .hint-btn {
-    width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border);
-    background: #fdf9f1; color: #a99a7d; font-size: 0.68rem; line-height: 1;
-    cursor: pointer; padding: 0;
-  }
-  .hint-btn:hover { border-color: var(--accent); color: var(--accent); }
   .grammar-line {
     font-size: 0.68rem; text-transform: lowercase; letter-spacing: 0.02em;
     color: #8a7f6a; margin-top: 4px; text-align: center; max-width: 120px;
-    line-height: 1.3; min-height: 18px; white-space: nowrap;
-    display: flex; align-items: center; justify-content: center;
+    line-height: 1.3; min-height: 18px;
   }
-  .grammar-line.hint-shown { white-space: normal; }
   .controls { display: flex; justify-content: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
   .controls button {
     font-family: inherit; font-size: 0.85rem; padding: 8px 18px; border-radius: 8px;
@@ -353,23 +345,12 @@ function renderAll() {
 
       const grammarDiv = document.createElement('div');
       grammarDiv.className = 'grammar-line';
-
-      const hintBtn = document.createElement('button');
-      hintBtn.type = 'button';
-      hintBtn.className = 'hint-btn';
-      hintBtn.textContent = '?';
-      hintBtn.title = 'Show grammar hint';
-      grammarDiv.appendChild(hintBtn);
-
-      hintBtn.addEventListener('click', () => {
-        grammarDiv.textContent = w.grammar || '(no grammar data)';
-        grammarDiv.classList.add('hint-shown');
-      });
+      grammarDiv.textContent = w.grammar || '';
 
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          checkWord(input, revealDiv, w, grammarDiv, hintBtn);
+          checkWord(input, revealDiv, w);
           focusNext(input);
         }
       });
@@ -397,7 +378,7 @@ function strongsToUrl(code) {
   return `https://biblehub.com/hebrew/${num}.htm`;
 }
 
-function checkWord(input, revealDiv, wordData, grammarDiv, hintBtn) {
+function checkWord(input, revealDiv, wordData) {
   const userAns = normalize(input.value);
   const isCorrect = wordData.answers.some(a => normalize(a) === userAns);
   input.classList.remove('correct', 'incorrect');
@@ -409,12 +390,6 @@ function checkWord(input, revealDiv, wordData, grammarDiv, hintBtn) {
     input.classList.add('incorrect');
     revealDiv.textContent = wordData.answers[0];
     revealDiv.style.color = 'var(--bad)';
-  }
-  // always show the grammar hint once a word is checked, whether or not
-  // the student asked for it beforehand
-  if (grammarDiv && !grammarDiv.classList.contains('hint-shown')) {
-    grammarDiv.textContent = wordData.grammar || '(no grammar data)';
-    grammarDiv.classList.add('hint-shown');
   }
   input.dataset.checked = 'true';
   input.dataset.correct = isCorrect ? 'true' : 'false';
@@ -442,12 +417,10 @@ document.getElementById('checkAllBtn').addEventListener('click', () => {
     const input = unit.querySelector('input');
     if (input.dataset.checked !== 'true') {
       const revealDiv = unit.querySelector('.reveal');
-      const grammarDiv = unit.querySelector('.grammar-line');
-      const hintBtn = unit.querySelector('.hint-btn');
       const vIdx = parseInt(input.dataset.vIdx, 10);
       const wIdx = parseInt(input.dataset.wIdx, 10);
       const wordData = currentVerses[vIdx].words[wIdx];
-      checkWord(input, revealDiv, wordData, grammarDiv, hintBtn);
+      checkWord(input, revealDiv, wordData);
     }
   });
 });
