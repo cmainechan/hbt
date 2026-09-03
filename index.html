@@ -64,9 +64,13 @@
     direction: rtl; display: flex; flex-wrap: wrap; gap: 10px 14px; justify-content: flex-start;
   }
   .word-unit { display: flex; flex-direction: column; align-items: center; min-width: 92px; }
+  .top-row {
+    display: flex; gap: 6px; align-items: baseline; justify-content: center;
+    margin-bottom: 4px; flex-wrap: nowrap;
+  }
   .word-unit input {
     width: 100%; text-align: center; direction: ltr; font-family: "Georgia", serif; font-size: 0.85rem;
-    padding: 5px 4px; border: 1.5px solid var(--border); border-radius: 6px; margin-bottom: 6px;
+    padding: 5px 4px; border: 1.5px solid var(--border); border-radius: 6px; margin-top: 6px;
     background: #fffef9; color: var(--ink);
   }
   .word-unit input:focus { outline: none; border-color: var(--accent); }
@@ -74,11 +78,10 @@
   .word-unit input.incorrect { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
   .hebrew-word { font-size: 1.7rem; line-height: 1.6; white-space: nowrap; }
   .translit-line {
-    font-size: 0.68rem; font-style: italic; color: #a99a7d;
-    margin-top: 2px; text-align: center; max-width: 120px; min-height: 14px;
+    font-size: 0.65rem; font-style: italic; color: #a99a7d; white-space: nowrap;
   }
   .strongs-line {
-    font-size: 0.65rem; margin-top: 2px; text-align: center; max-width: 120px; min-height: 14px;
+    font-size: 0.62rem; white-space: nowrap;
   }
   .strongs-line a {
     color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent);
@@ -309,6 +312,34 @@ function renderAll() {
       const unit = document.createElement('div');
       unit.className = 'word-unit';
 
+      const topRow = document.createElement('div');
+      topRow.className = 'top-row';
+
+      const strongsDiv = document.createElement('div');
+      strongsDiv.className = 'strongs-line';
+      if (w.strongs && w.strongs.length) {
+        w.strongs.forEach((code, i) => {
+          if (i > 0) strongsDiv.appendChild(document.createTextNode(', '));
+          const a = document.createElement('a');
+          a.href = strongsToUrl(code);
+          a.textContent = code;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          strongsDiv.appendChild(a);
+        });
+      }
+
+      const translitDiv = document.createElement('div');
+      translitDiv.className = 'translit-line';
+      translitDiv.textContent = w.translit || '';
+
+      topRow.appendChild(strongsDiv);
+      topRow.appendChild(translitDiv);
+
+      const hebrewDiv = document.createElement('div');
+      hebrewDiv.className = 'hebrew-word';
+      hebrewDiv.textContent = w.hebrew;
+
       const input = document.createElement('input');
       input.type = 'text';
       input.placeholder = '…';
@@ -316,16 +347,6 @@ function renderAll() {
       input.spellcheck = false;
       input.dataset.vIdx = vIdx;
       input.dataset.wIdx = wIdx;
-
-      const hebrewDiv = document.createElement('div');
-      hebrewDiv.className = 'hebrew-word';
-      hebrewDiv.textContent = w.hebrew;
-
-      const translitDiv = document.createElement('div');
-      translitDiv.className = 'translit-line';
-
-      const strongsDiv = document.createElement('div');
-      strongsDiv.className = 'strongs-line';
 
       const revealDiv = document.createElement('div');
       revealDiv.className = 'reveal';
@@ -348,15 +369,14 @@ function renderAll() {
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          checkWord(input, revealDiv, w, grammarDiv, hintBtn, translitDiv, strongsDiv);
+          checkWord(input, revealDiv, w, grammarDiv, hintBtn);
           focusNext(input);
         }
       });
 
-      unit.appendChild(input);
+      unit.appendChild(topRow);
       unit.appendChild(hebrewDiv);
-      unit.appendChild(translitDiv);
-      unit.appendChild(strongsDiv);
+      unit.appendChild(input);
       unit.appendChild(revealDiv);
       unit.appendChild(grammarDiv);
       line.appendChild(unit);
@@ -377,7 +397,7 @@ function strongsToUrl(code) {
   return `https://biblehub.com/hebrew/${num}.htm`;
 }
 
-function checkWord(input, revealDiv, wordData, grammarDiv, hintBtn, translitDiv, strongsDiv) {
+function checkWord(input, revealDiv, wordData, grammarDiv, hintBtn) {
   const userAns = normalize(input.value);
   const isCorrect = wordData.answers.some(a => normalize(a) === userAns);
   input.classList.remove('correct', 'incorrect');
@@ -395,23 +415,6 @@ function checkWord(input, revealDiv, wordData, grammarDiv, hintBtn, translitDiv,
   if (grammarDiv && !grammarDiv.classList.contains('hint-shown')) {
     grammarDiv.textContent = wordData.grammar || '(no grammar data)';
     grammarDiv.classList.add('hint-shown');
-  }
-  // transliteration always appears after a submission - no hint button for it
-  if (translitDiv) {
-    translitDiv.textContent = wordData.translit || '';
-  }
-  // Strong's number(s), linked to Bible Hub, also appear after submission
-  if (strongsDiv && wordData.strongs && wordData.strongs.length) {
-    strongsDiv.innerHTML = '';
-    wordData.strongs.forEach((code, i) => {
-      if (i > 0) strongsDiv.appendChild(document.createTextNode(', '));
-      const a = document.createElement('a');
-      a.href = strongsToUrl(code);
-      a.textContent = code;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      strongsDiv.appendChild(a);
-    });
   }
   input.dataset.checked = 'true';
   input.dataset.correct = isCorrect ? 'true' : 'false';
@@ -441,12 +444,10 @@ document.getElementById('checkAllBtn').addEventListener('click', () => {
       const revealDiv = unit.querySelector('.reveal');
       const grammarDiv = unit.querySelector('.grammar-line');
       const hintBtn = unit.querySelector('.hint-btn');
-      const translitDiv = unit.querySelector('.translit-line');
-      const strongsDiv = unit.querySelector('.strongs-line');
       const vIdx = parseInt(input.dataset.vIdx, 10);
       const wIdx = parseInt(input.dataset.wIdx, 10);
       const wordData = currentVerses[vIdx].words[wIdx];
-      checkWord(input, revealDiv, wordData, grammarDiv, hintBtn, translitDiv, strongsDiv);
+      checkWord(input, revealDiv, wordData, grammarDiv, hintBtn);
     }
   });
 });
