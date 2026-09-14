@@ -49,8 +49,28 @@
     font-size: 0.78rem; color: var(--bad); margin-bottom: 6px; min-height: 14px; text-align: center; max-width: 500px;
   }
   .range-hint {
-    font-size: 0.72rem; color: #a99a7d; margin-bottom: 16px; text-align: center; max-width: 500px;
+    font-size: 0.72rem; color: #a99a7d; margin-bottom: 8px; text-align: center; max-width: 500px;
   }
+  .settings-row {
+    display: flex; gap: 20px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap;
+  }
+  .toggle-switch {
+    display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.8rem; color: #766c5c;
+  }
+  .toggle-switch input { display: none; }
+  .toggle-switch .slider {
+    width: 32px; height: 18px; border-radius: 999px; background: var(--border);
+    position: relative; transition: background 0.15s ease; flex-shrink: 0;
+  }
+  .toggle-switch .slider::before {
+    content: ''; position: absolute; width: 14px; height: 14px; border-radius: 50%;
+    background: white; top: 2px; left: 2px; transition: transform 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .toggle-switch input:checked + .slider { background: var(--accent); }
+  .toggle-switch input:checked + .slider::before { transform: translateX(14px); }
+  .board.hide-translit .translit-line { display: none; }
+  .board.hide-morph .grammar-line { display: none; }
   .board {
     background: var(--box); border: 1px solid var(--border); border-radius: 12px;
     padding: 28px 22px; max-width: 900px; width: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
@@ -115,6 +135,19 @@
 </div>
 <div class="lookup-msg" id="lookupMsg"></div>
 <div class="range-hint">Covers the whole Hebrew Bible (Tanakh). Single verses or short ranges within one chapter, e.g. "Psalm 23:1-6".</div>
+
+<div class="settings-row">
+  <label class="toggle-switch">
+    <input type="checkbox" id="translitToggle" checked>
+    <span class="slider"></span>
+    <span class="toggle-label">Transliteration</span>
+  </label>
+  <label class="toggle-switch">
+    <input type="checkbox" id="morphToggle" checked>
+    <span class="slider"></span>
+    <span class="toggle-label">Morphology</span>
+  </label>
+</div>
 
 <div class="board" id="board" style="display:none;">
   <div id="verseContainer"></div>
@@ -513,6 +546,13 @@ document.getElementById('citationInput').addEventListener('keydown', (e) => {
     e.preventDefault();
     lookupVerse(e.target.value);
   }
+});
+
+document.getElementById('translitToggle').addEventListener('change', (e) => {
+  board.classList.toggle('hide-translit', !e.target.checked);
+});
+document.getElementById('morphToggle').addEventListener('change', (e) => {
+  board.classList.toggle('hide-morph', !e.target.checked);
 });
 
 // Load a starting example
