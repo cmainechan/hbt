@@ -107,6 +107,15 @@
     color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent);
   }
   .strongs-line a:hover { border-bottom-style: solid; }
+  .lexicon-tooltip {
+    position: absolute; z-index: 1000; background: #2b2620; color: #fbf7ef;
+    padding: 8px 12px; border-radius: 8px; font-family: "Georgia", serif;
+    text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    pointer-events: none; max-width: 220px;
+  }
+  .lexicon-tooltip-hebrew { font-size: 1.3rem; line-height: 1.3; }
+  .lexicon-tooltip-translit { font-size: 0.72rem; font-style: italic; color: #d8cdb8; margin-top: 2px; }
+  .lexicon-tooltip-gloss { font-size: 0.78rem; margin-top: 4px; color: #fbf7ef; }
   .reveal { font-size: 0.72rem; color: var(--accent); margin-top: 3px; min-height: 12px; text-align: center; max-width: 100px; }
   .grammar-line {
     font-size: 0.68rem; text-transform: lowercase; letter-spacing: 0.02em;
@@ -350,6 +359,9 @@ function renderAll() {
           a.textContent = code;
           a.target = '_blank';
           a.rel = 'noopener';
+          a.className = 'strongs-link';
+          a.dataset.strongsCode = code;
+          wireLexiconTooltip(a, code);
           strongsDiv.appendChild(a);
         });
       }
@@ -410,6 +422,80 @@ function strongsToUrl(code) {
   const num = parseInt(code.slice(1), 10);
   return `https://biblehub.com/hebrew/${num}.htm`;
 }
+
+// ---------------------------------------------------------------------
+// Lexicon tooltip: shows the dictionary lemma + gloss for a Strong's
+// number on hover (desktop) or tap (touch), sourced from STEPBible's
+// TBESH lexicon (CC BY). Loaded once and cached.
+// ---------------------------------------------------------------------
+let lexiconData = null;
+let lexiconLoadPromise = null;
+
+function loadLexicon() {
+  if (lexiconLoadPromise) return lexiconLoadPromise;
+  lexiconLoadPromise = fetch('./lexicon.json')
+    .then(res => res.ok ? res.json() : {})
+    .then(json => { lexiconData = json; return json; })
+    .catch(() => { lexiconData = {}; return {}; });
+  return lexiconLoadPromise;
+}
+
+const tooltipEl = document.createElement('div');
+tooltipEl.className = 'lexicon-tooltip';
+tooltipEl.style.display = 'none';
+document.body.appendChild(tooltipEl);
+
+function showTooltip(anchorEl, code) {
+  const entry = lexiconData && lexiconData[code];
+  if (!entry) return;
+  tooltipEl.innerHTML = `
+    <div class="lexicon-tooltip-hebrew">${entry.hebrew}</div>
+    <div class="lexicon-tooltip-translit">${entry.translit}</div>
+    <div class="lexicon-tooltip-gloss">"${entry.gloss}"</div>
+  `;
+  tooltipEl.style.display = 'block';
+  const rect = anchorEl.getBoundingClientRect();
+  const tipRect = tooltipEl.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - tipRect.width / 2 + window.scrollX;
+  left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8 + window.scrollX));
+  const top = rect.top - tipRect.height - 8 + window.scrollY;
+  tooltipEl.style.left = `${left}px`;
+  tooltipEl.style.top = `${top}px`;
+}
+
+function hideTooltip() {
+  tooltipEl.style.display = 'none';
+}
+
+function wireLexiconTooltip(anchorEl, code) {
+  // Desktop: hover
+  anchorEl.addEventListener('mouseenter', () => {
+    loadLexicon().then(() => showTooltip(anchorEl, code));
+  });
+  anchorEl.addEventListener('mouseleave', hideTooltip);
+
+  // Touch: tap toggles the tooltip instead of navigating immediately,
+  // so a first tap previews the lexicon entry rather than leaving the page
+  anchorEl.addEventListener('click', (e) => {
+    if (tooltipEl.style.display === 'block' && tooltipEl.dataset.forCode === code) {
+      // second tap on the same link while its tooltip is open: let the
+      // link navigate normally
+      tooltipEl.dataset.forCode = '';
+      return;
+    }
+    if (window.matchMedia('(hover: none)').matches) {
+      e.preventDefault();
+      loadLexicon().then(() => {
+        showTooltip(anchorEl, code);
+        tooltipEl.dataset.forCode = code;
+      });
+    }
+  });
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.strongs-link')) hideTooltip();
+});
 
 function checkWord(input, revealDiv, wordData) {
   const userAns = normalize(input.value);
