@@ -141,7 +141,7 @@
   .fish-link .to-inn { font-weight: 400; opacity: 0.8; font-size: 0.8rem; }
   .board { position: relative; }
   .fish-pop {
-    position: absolute; left: 50%; top: 0.6rem; transform: translateX(-50%);
+    position: fixed; transform: translateX(-50%);
     background: var(--accent); color: #fff; font-weight: 700; padding: 0.3rem 0.8rem;
     border-radius: 999px; pointer-events: none; white-space: nowrap; z-index: 5;
     animation: fishpop 1.4s ease-out forwards;
@@ -308,7 +308,13 @@ function addFish(amount) {
   const pop = document.createElement('div');
   pop.className = 'fish-pop';
   pop.textContent = `+${amount} 🐟`;
-  board.appendChild(pop);
+  // Pop up from the "Next verse" button, clamped so it's always on screen.
+  const r = document.getElementById('nextBtn').getBoundingClientRect();
+  const x = Math.max(50, Math.min(r.left + r.width / 2, window.innerWidth - 50));
+  const y = Math.max(60, Math.min(r.top - 6, window.innerHeight - 60));
+  pop.style.left = `${x}px`;
+  pop.style.top = `${y - 30}px`;
+  document.body.appendChild(pop);
   setTimeout(() => pop.remove(), 1500);
 }
 
