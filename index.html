@@ -308,12 +308,13 @@ function addFish(amount) {
   const pop = document.createElement('div');
   pop.className = 'fish-pop';
   pop.textContent = `+${amount} 🐟`;
-  // Pop up from the "Next verse" button, clamped so it's always on screen.
-  const r = document.getElementById('nextBtn').getBoundingClientRect();
-  const x = Math.max(50, Math.min(r.left + r.width / 2, window.innerWidth - 50));
-  const y = Math.max(60, Math.min(r.top - 6, window.innerHeight - 60));
+  // Pop up on the buttons' line, centred on the button row, clamped on screen.
+  const row = document.querySelector('.controls').getBoundingClientRect();
+  const btn = document.getElementById('nextBtn').getBoundingClientRect();
+  const x = Math.max(50, Math.min(row.left + row.width / 2, window.innerWidth - 50));
+  const y = Math.max(40, Math.min(btn.top + btn.height / 2, window.innerHeight - 40));
   pop.style.left = `${x}px`;
-  pop.style.top = `${y - 30}px`;
+  pop.style.top = `${y - 16}px`;
   document.body.appendChild(pop);
   setTimeout(() => pop.remove(), 1500);
 }
