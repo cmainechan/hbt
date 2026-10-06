@@ -129,10 +129,44 @@
   }
   .controls button.secondary { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
   .score { text-align: center; margin-top: 14px; font-size: 0.9rem; color: #766c5c; }
+  .fish-bar { width: 100%; max-width: 900px; display: flex; justify-content: flex-end; margin-bottom: 8px; }
+  .fish-link {
+    display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.75rem;
+    border-radius: 999px; background: var(--accent); color: #fff; font-weight: 600;
+    font-size: 0.9rem; text-decoration: none; transition: background 0.2s ease, transform 0.2s ease;
+  }
+  .fish-link:hover { background: #8f6d49; }
+  .fish-link:focus-visible { outline: 3px solid #c9a24a; outline-offset: 2px; }
+  .fish-link.bump { transform: scale(1.18); }
+  .fish-link .to-inn { font-weight: 400; opacity: 0.8; font-size: 0.8rem; }
+  .board { position: relative; }
+  .fish-pop {
+    position: absolute; left: 50%; top: 0.6rem; transform: translateX(-50%);
+    background: var(--accent); color: #fff; font-weight: 700; padding: 0.3rem 0.8rem;
+    border-radius: 999px; pointer-events: none; white-space: nowrap; z-index: 5;
+    animation: fishpop 1.4s ease-out forwards;
+  }
+  @keyframes fishpop {
+    0% { opacity: 0; transform: translate(-50%, 8px) scale(0.8); }
+    15% { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
+    70% { opacity: 1; transform: translate(-50%, -18px) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -30px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fish-pop { animation-duration: 1.6s; animation-name: fishfade; }
+    @keyframes fishfade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+    .fish-link { transition: none; }
+  }
   .loading { text-align: center; color: #a99a7d; font-size: 0.9rem; padding: 20px; }
 </style>
 </head>
 <body>
+
+<div class="fish-bar">
+  <a href="../yard/" class="fish-link" id="fish-link" title="Spend your fish in the inn">
+    <span id="fish-count">🐟 0</span><span class="to-inn">Inn</span>
+  </a>
+</div>
 
 <h1>Interlinear Hebrew Practice</h1>
 <div class="ref" id="refLabel">Type a citation to begin</div>
@@ -242,6 +276,66 @@ function normalize(str) {
   // article flexibility: "the heavens" and "heavens" are treated as equivalent
   s = s.replace(/^(the|a|an)\s+/, '');
   return s;
+}
+
+// ---------- Fish ----------
+// Shared wallet with the inn (cmainechan.github.io/yard/). Every page on the
+// site reads and writes the same "fish" key in localStorage.
+// 2 fish for each verse whose fields are all filled in (accuracy doesn't
+// matter). Each verse pays out once per page visit, so Reset can't be farmed.
+const FISH_KEY = 'fish';
+const FISH_PER_VERSE = 2;
+const awardedVerses = new Set();
+
+function getFish() {
+  let n = 0;
+  try { n = parseInt(localStorage.getItem(FISH_KEY) || '0', 10); } catch (e) {}
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function renderFish(bump) {
+  const link = document.getElementById('fish-link');
+  document.getElementById('fish-count').textContent = `🐟 ${getFish()}`;
+  if (bump) {
+    link.classList.add('bump');
+    setTimeout(() => link.classList.remove('bump'), 220);
+  }
+}
+
+function addFish(amount) {
+  try { localStorage.setItem(FISH_KEY, String(getFish() + amount)); } catch (e) {}
+  renderFish(true);
+  const pop = document.createElement('div');
+  pop.className = 'fish-pop';
+  pop.textContent = `+${amount} 🐟`;
+  board.appendChild(pop);
+  setTimeout(() => pop.remove(), 1500);
+}
+
+window.addEventListener('storage', e => { if (e.key === FISH_KEY) renderFish(true); });
+renderFish();
+
+// Words STEPBible marks as untranslated (e.g. the object marker et) list "-"
+// or "(untranslated)" among their answers; leaving those blank is correct.
+function canBeBlank(wordData) {
+  return wordData.answers.some(a => a === '-' || a === '(untranslated)');
+}
+
+// A verse is "filled in" when every field has text, except blank-able words,
+// which count once they've been checked (Enter / Check remaining).
+function maybeAwardFish(vIdx) {
+  const verse = currentVerses[vIdx];
+  if (!verse || awardedVerses.has(verse.ref)) return;
+  const inputs = verseContainer.querySelectorAll(`input[data-v-idx="${vIdx}"]`);
+  const filled = Array.from(inputs).every(inp => {
+    if (inp.value.trim() !== '') return true;
+    const w = verse.words[parseInt(inp.dataset.wIdx, 10)];
+    return canBeBlank(w) && inp.dataset.checked === 'true';
+  });
+  if (filled) {
+    awardedVerses.add(verse.ref);
+    addFish(FISH_PER_VERSE);
+  }
 }
 
 // Parses "Genesis 1:1", "gen 1:1-5", "1 Samuel 2:3" etc.
@@ -499,7 +593,8 @@ document.addEventListener('click', (e) => {
 
 function checkWord(input, revealDiv, wordData) {
   const userAns = normalize(input.value);
-  const isCorrect = wordData.answers.some(a => normalize(a) === userAns);
+  const isCorrect = (userAns === '' && canBeBlank(wordData)) ||
+    wordData.answers.some(a => normalize(a) === userAns);
   input.classList.remove('correct', 'incorrect');
   if (isCorrect) {
     input.classList.add('correct');
@@ -513,6 +608,7 @@ function checkWord(input, revealDiv, wordData) {
   input.dataset.checked = 'true';
   input.dataset.correct = isCorrect ? 'true' : 'false';
   updateScore();
+  maybeAwardFish(parseInt(input.dataset.vIdx, 10));
 }
 
 function focusNext(currentInput) {
