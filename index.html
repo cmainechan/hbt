@@ -345,6 +345,16 @@ function maybeAwardFish(vIdx) {
   }
 }
 
+// Remembers the passage on screen so the next visit resumes there.
+const LAST_CITATION_KEY = 'lastCitation';
+function saveLastCitation(verses) {
+  if (verses.length === 0) return;
+  const first = verses[0];
+  const last = verses[verses.length - 1];
+  const range = first.verseNum === last.verseNum ? '' : `-${last.verseNum}`;
+  try { localStorage.setItem(LAST_CITATION_KEY, `${first.bookKey} ${first.chapter}:${first.verseNum}${range}`); } catch (e) {}
+}
+
 // Parses "Genesis 1:1", "gen 1:1-5", "1 Samuel 2:3" etc.
 function parseCitation(raw) {
   const cleaned = raw.trim().toLowerCase();
@@ -422,6 +432,7 @@ function renderAll() {
   const first = nonTitleVerses[0].ref;
   const last = nonTitleVerses[nonTitleVerses.length - 1].ref;
   refLabel.textContent = nonTitleVerses.length > 1 ? `${first} – ${last.split(' ').pop()}` : first;
+  saveLastCitation(nonTitleVerses);
 
   currentVerses.forEach((verse, vIdx) => {
     const block = document.createElement('div');
@@ -744,9 +755,15 @@ document.getElementById('morphToggle').addEventListener('change', (e) => {
   board.classList.toggle('hide-morph', !e.target.checked);
 });
 
-// Load a starting example
-lookupVerse('Genesis 1:1-5');
-document.getElementById('citationInput').value = 'Genesis 1:1-5';
+// Resume where the reader left off, or start at Genesis 1:1-5
+const DEFAULT_CITATION = 'Genesis 1:1-5';
+let startCitation = DEFAULT_CITATION;
+try {
+  const saved = localStorage.getItem(LAST_CITATION_KEY);
+  if (saved && parseCitation(saved)) startCitation = saved;
+} catch (e) {}
+lookupVerse(startCitation);
+document.getElementById('citationInput').value = startCitation;
 </script>
 </body>
 </html>
