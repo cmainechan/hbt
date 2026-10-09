@@ -281,10 +281,10 @@ function normalize(str) {
 // ---------- Fish ----------
 // Shared wallet with the inn (cmainechan.github.io/inn/). Every page on the
 // site reads and writes the same "fish" key in localStorage.
-// 5 fish for each verse whose fields are all filled in (accuracy doesn't
+// 2 fish for each verse whose fields are all filled in (accuracy doesn't
 // matter). Each verse pays out once per page visit, so Reset can't be farmed.
 const FISH_KEY = 'fish';
-const FISH_PER_VERSE = 5;
+const FISH_PER_VERSE = 2;
 const awardedVerses = new Set();
 
 function getFish() {
