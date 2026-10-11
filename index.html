@@ -51,6 +51,37 @@
   .range-hint {
     font-size: 0.72rem; color: #a99a7d; margin-bottom: 8px; text-align: center; max-width: 500px;
   }
+  .favorites-row {
+    display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; position: relative;
+  }
+  .favorites-row button {
+    font-family: inherit; font-size: 0.8rem; padding: 6px 14px; border-radius: 999px;
+    border: 1.5px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer;
+  }
+  .favorites-row button.active { background: var(--accent); color: #fff; }
+  .favorites-dropdown { position: relative; }
+  .favorites-panel {
+    display: none; position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: var(--box); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12); padding: 8px; min-width: 240px; max-width: 320px;
+    max-height: 260px; overflow-y: auto; z-index: 20; text-align: left;
+  }
+  .favorites-panel.open { display: block; }
+  .favorites-empty { font-size: 0.78rem; color: #a99a7d; padding: 8px; text-align: center; }
+  .favorite-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    border-radius: 6px; padding: 2px;
+  }
+  .favorite-item:hover { background: var(--bg); }
+  .favorite-open {
+    flex: 1; text-align: left; background: none; border: none; color: var(--ink);
+    font-family: inherit; font-size: 0.82rem; padding: 6px 8px; cursor: pointer; border-radius: 6px;
+  }
+  .favorite-remove {
+    background: none; border: none; color: #a99a7d; font-size: 0.8rem; cursor: pointer;
+    padding: 4px 8px; border-radius: 6px; line-height: 1;
+  }
+  .favorite-remove:hover { color: var(--bad); }
   .settings-row {
     display: flex; gap: 20px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap;
   }
@@ -178,6 +209,14 @@
 </div>
 <div class="lookup-msg" id="lookupMsg"></div>
 <div class="range-hint">Covers the whole Hebrew Bible (Tanakh). Single verses or short ranges within one chapter, e.g. "Psalm 23:1-6".</div>
+
+<div class="favorites-row">
+  <button id="favoriteBtn" title="Save this passage to your favorites">☆ Favorite</button>
+  <div class="favorites-dropdown">
+    <button id="favoritesToggleBtn">★ Favorites (0)</button>
+    <div class="favorites-panel" id="favoritesPanel"></div>
+  </div>
+</div>
 
 <div class="settings-row">
   <label class="toggle-switch">
@@ -355,6 +394,105 @@ function saveLastCitation(verses) {
   try { localStorage.setItem(LAST_CITATION_KEY, `${first.bookKey} ${first.chapter}:${first.verseNum}${range}`); } catch (e) {}
 }
 
+// ---------- Favorites ----------
+// Lets the reader bookmark a passage and return to it later. Stored as a
+// list of { key, label } in localStorage: `key` (parsed book/chapter/verse)
+// is used to dedupe and to match the star's on/off state; `label` is the
+// citation text re-fed into lookupVerse when the favorite is opened.
+const FAVORITES_KEY = 'favorites';
+const favoriteBtn = document.getElementById('favoriteBtn');
+const favoritesToggleBtn = document.getElementById('favoritesToggleBtn');
+const favoritesPanel = document.getElementById('favoritesPanel');
+
+function getFavorites() {
+  try {
+    const list = JSON.parse(localStorage.getItem(FAVORITES_KEY) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch (e) { return []; }
+}
+
+function saveFavorites(list) {
+  try { localStorage.setItem(FAVORITES_KEY, JSON.stringify(list)); } catch (e) {}
+}
+
+function favoriteKeyFor(parsed) {
+  return `${parsed.bookKey}|${parsed.chapter}|${parsed.startVerse}|${parsed.endVerse}`;
+}
+
+function toggleFavorite() {
+  const input = document.getElementById('citationInput');
+  const parsed = parseCitation(input.value);
+  if (!parsed) return;
+  const key = favoriteKeyFor(parsed);
+  const list = getFavorites();
+  const idx = list.findIndex(f => f.key === key);
+  if (idx >= 0) {
+    list.splice(idx, 1);
+  } else {
+    list.push({ key, label: input.value.trim() });
+  }
+  saveFavorites(list);
+  renderFavoriteBtn();
+  renderFavoritesPanel();
+}
+
+function renderFavoriteBtn() {
+  const parsed = parseCitation(document.getElementById('citationInput').value);
+  const active = !!parsed && getFavorites().some(f => f.key === favoriteKeyFor(parsed));
+  favoriteBtn.textContent = active ? '★ Favorited' : '☆ Favorite';
+  favoriteBtn.classList.toggle('active', active);
+}
+
+function renderFavoritesPanel() {
+  const list = getFavorites();
+  favoritesToggleBtn.textContent = `★ Favorites (${list.length})`;
+  favoritesPanel.innerHTML = '';
+  if (list.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'favorites-empty';
+    empty.textContent = 'No favorites yet — tap ☆ Favorite to save a passage.';
+    favoritesPanel.appendChild(empty);
+    return;
+  }
+  list.forEach(fav => {
+    const row = document.createElement('div');
+    row.className = 'favorite-item';
+
+    const openBtn = document.createElement('button');
+    openBtn.className = 'favorite-open';
+    openBtn.textContent = fav.label;
+    openBtn.addEventListener('click', () => {
+      document.getElementById('citationInput').value = fav.label;
+      lookupVerse(fav.label);
+      favoritesPanel.classList.remove('open');
+    });
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'favorite-remove';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Remove this favorite';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      saveFavorites(getFavorites().filter(f => f.key !== fav.key));
+      renderFavoritesPanel();
+      renderFavoriteBtn();
+    });
+
+    row.appendChild(openBtn);
+    row.appendChild(removeBtn);
+    favoritesPanel.appendChild(row);
+  });
+}
+
+favoriteBtn.addEventListener('click', toggleFavorite);
+favoritesToggleBtn.addEventListener('click', () => {
+  favoritesPanel.classList.toggle('open');
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.favorites-dropdown')) favoritesPanel.classList.remove('open');
+});
+renderFavoritesPanel();
+
 // Parses "Genesis 1:1", "gen 1:1-5", "1 Samuel 2:3" etc.
 function parseCitation(raw) {
   const cleaned = raw.trim().toLowerCase();
@@ -433,6 +571,7 @@ function renderAll() {
   const last = nonTitleVerses[nonTitleVerses.length - 1].ref;
   refLabel.textContent = nonTitleVerses.length > 1 ? `${first} – ${last.split(' ').pop()}` : first;
   saveLastCitation(nonTitleVerses);
+  renderFavoriteBtn();
 
   currentVerses.forEach((verse, vIdx) => {
     const block = document.createElement('div');
