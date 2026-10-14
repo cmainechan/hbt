@@ -108,7 +108,7 @@
     padding: 2rem 2rem 2.5rem;
   }
 
-  .fish-bar { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+  .fish-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 10px; }
   .fish-link {
     display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.75rem;
     border-radius: 999px; background: var(--ac); color: var(--on); font-weight: 600;
@@ -147,25 +147,28 @@
   }
   .lookup-row button:hover:not(:disabled) { opacity: 0.9; }
   .lookup-row button:disabled { opacity: 0.6; cursor: default; }
+  .star-btn {
+    flex: 0 0 auto; background: transparent !important; color: var(--mu) !important;
+    border: 1.5px solid var(--line) !important; font-size: 1rem; padding: 8px 12px !important;
+    line-height: 1;
+  }
+  .star-btn:hover { border-color: var(--ac) !important; color: var(--ac) !important; opacity: 1 !important; }
+  .star-btn.active { color: var(--ac) !important; border-color: var(--ac) !important; }
   .lookup-msg {
     font-size: 0.78rem; color: var(--bad); margin-bottom: 6px; min-height: 14px; text-align: center; max-width: 500px; margin-left: auto; margin-right: auto;
   }
   .range-hint {
     font-size: 0.72rem; color: var(--mu); margin: 0 auto 8px; text-align: center; max-width: 500px;
   }
-  .favorites-row {
-    display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; position: relative;
-  }
-  .favorites-row button {
-    font-family: inherit; font-size: 0.8rem; padding: 6px 14px; border-radius: 999px;
+  .favorites-dropdown { position: relative; }
+  .favorites-toggle {
+    font-family: inherit; font-size: 0.85rem; padding: 0.25rem 0.75rem; border-radius: 999px;
     border: 1.5px solid var(--line); background: transparent; color: var(--mu); cursor: pointer;
     transition: border-color 0.15s ease, color 0.15s ease;
   }
-  .favorites-row button:hover { border-color: var(--ac); color: var(--ac); }
-  .favorites-row button.active { background: var(--ac); color: var(--on); border-color: var(--ac); }
-  .favorites-dropdown { position: relative; }
+  .favorites-toggle:hover { border-color: var(--ac); color: var(--ac); }
   .favorites-panel {
-    display: none; position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    display: none; position: absolute; top: calc(100% + 6px); left: 0; transform: none;
     background: var(--card); border: 1px solid var(--line); border-radius: 10px;
     box-shadow: 0 4px 14px rgba(0,0,0,0.25); padding: 8px; min-width: 240px; max-width: 320px;
     max-height: 260px; overflow-y: auto; z-index: 20; text-align: left;
@@ -315,6 +318,10 @@
 <div class="shell">
 
   <div class="fish-bar">
+    <div class="favorites-dropdown">
+      <button id="favoritesToggleBtn" class="favorites-toggle" title="View your favorite passages" aria-label="View your favorite passages">★ <span id="favoritesCount">0</span></button>
+      <div class="favorites-panel" id="favoritesPanel"></div>
+    </div>
     <a href="../inn/" class="fish-link" id="fish-link" title="Spend your fish in the inn">
       <span id="fish-count">🐟 0</span><span class="to-inn">Inn</span>
     </a>
@@ -322,7 +329,7 @@
 
   <header class="page-header">
     <h1>Interlinear Hebrew Practice</h1>
-    <p class="subtitle">Type the English gloss for each Hebrew word, then press <b>Enter</b>. Word order runs right‑to‑left, matching the Hebrew.</p>
+    <p class="subtitle">Type the English gloss for each Hebrew word, then press <b>Enter</b>.</p>
     <div class="rule"></div>
   </header>
 
@@ -331,17 +338,10 @@
   <div class="lookup-row">
     <input type="text" id="citationInput" placeholder="e.g. Genesis 1:1 or Genesis 1:1-5" autocomplete="off">
     <button id="lookupBtn">Load</button>
+    <button id="favoriteBtn" class="star-btn" title="Save this passage to your favorites" aria-label="Save this passage to your favorites">☆</button>
   </div>
   <div class="lookup-msg" id="lookupMsg"></div>
-  <div class="range-hint">Covers the whole Hebrew Bible (Tanakh). Single verses or short ranges within one chapter, e.g. "Psalm 23:1-6".</div>
-
-  <div class="favorites-row">
-    <button id="favoriteBtn" title="Save this passage to your favorites">☆ Favorite</button>
-    <div class="favorites-dropdown">
-      <button id="favoritesToggleBtn">★ Favorites (0)</button>
-      <div class="favorites-panel" id="favoritesPanel"></div>
-    </div>
-  </div>
+  <div class="range-hint">Single verses or short ranges within one chapter, e.g. "Psalm 23:1-6".</div>
 
   <div class="settings-row">
     <label class="toggle-switch">
@@ -570,18 +570,19 @@ function toggleFavorite() {
 function renderFavoriteBtn() {
   const parsed = parseCitation(document.getElementById('citationInput').value);
   const active = !!parsed && getFavorites().some(f => f.key === favoriteKeyFor(parsed));
-  favoriteBtn.textContent = active ? '★ Favorited' : '☆ Favorite';
+  favoriteBtn.textContent = active ? '★' : '☆';
+  favoriteBtn.title = active ? 'Remove this passage from your favorites' : 'Save this passage to your favorites';
   favoriteBtn.classList.toggle('active', active);
 }
 
 function renderFavoritesPanel() {
   const list = getFavorites();
-  favoritesToggleBtn.textContent = `★ Favorites (${list.length})`;
+  document.getElementById('favoritesCount').textContent = list.length;
   favoritesPanel.innerHTML = '';
   if (list.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'favorites-empty';
-    empty.textContent = 'No favorites yet — tap ☆ Favorite to save a passage.';
+    empty.textContent = 'No favorites yet — tap ☆ next to Load to save a passage.';
     favoritesPanel.appendChild(empty);
     return;
   }
