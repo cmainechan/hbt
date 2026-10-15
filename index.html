@@ -732,6 +732,10 @@ function renderAll() {
   const lastV = nonTitleVerses[nonTitleVerses.length - 1];
   const firstLabel = formatCitation(firstV.bookKey, firstV.chapter, firstV.verseNum);
   refLabel.textContent = nonTitleVerses.length > 1 ? `${firstLabel} – ${lastV.verseNum}` : firstLabel;
+  // Keep the search box in sync with what's on screen, with the book name
+  // capitalised (also tidies abbreviations like "gen 1:1" -> "Genesis 1:1").
+  document.getElementById('citationInput').value =
+    formatCitation(firstV.bookKey, firstV.chapter, firstV.verseNum, lastV.verseNum);
   saveLastCitation(nonTitleVerses);
   renderFavoriteBtn();
 
@@ -1063,6 +1067,11 @@ try {
   const saved = localStorage.getItem(LAST_CITATION_KEY);
   if (saved && parseCitation(saved)) startCitation = saved;
 } catch (e) {}
+// Normalise (a citation saved by an older version may be lowercase)
+const startParsed = parseCitation(startCitation);
+if (startParsed) {
+  startCitation = formatCitation(startParsed.bookKey, startParsed.chapter, startParsed.startVerse, startParsed.endVerse);
+}
 lookupVerse(startCitation);
 document.getElementById('citationInput').value = startCitation;
 </script>
