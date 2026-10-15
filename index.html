@@ -431,6 +431,30 @@ const BOOK_ORDER = [
   "jonah","micah","nahum","habakkuk","zephaniah","haggai","zechariah","malachi"
 ];
 
+// Display names for the internal book keys (used for the reference label,
+// favorites, and messages). Keys like "1samuel" can't be capitalised
+// mechanically, so each one is spelled out.
+const BOOK_NAMES = {
+  genesis:"Genesis", exodus:"Exodus", leviticus:"Leviticus", numbers:"Numbers",
+  deuteronomy:"Deuteronomy", joshua:"Joshua", judges:"Judges", ruth:"Ruth",
+  "1samuel":"1 Samuel", "2samuel":"2 Samuel", "1kings":"1 Kings", "2kings":"2 Kings",
+  "1chronicles":"1 Chronicles", "2chronicles":"2 Chronicles", ezra:"Ezra",
+  nehemiah:"Nehemiah", esther:"Esther", job:"Job", psalm:"Psalm",
+  proverbs:"Proverbs", ecclesiastes:"Ecclesiastes", songofsongs:"Song of Songs",
+  isaiah:"Isaiah", jeremiah:"Jeremiah", lamentations:"Lamentations",
+  ezekiel:"Ezekiel", daniel:"Daniel", hosea:"Hosea", joel:"Joel", amos:"Amos",
+  obadiah:"Obadiah", jonah:"Jonah", micah:"Micah", nahum:"Nahum",
+  habakkuk:"Habakkuk", zephaniah:"Zephaniah", haggai:"Haggai",
+  zechariah:"Zechariah", malachi:"Malachi"
+};
+const bookName = key => BOOK_NAMES[key] || key;
+
+// "Genesis 1:1" or "Genesis 1:1-5"
+function formatCitation(bookKey, chapter, startVerse, endVerse) {
+  const range = endVerse && endVerse !== startVerse ? `-${endVerse}` : '';
+  return `${bookName(bookKey)} ${chapter}:${startVerse}${range}`;
+}
+
 const bookCache = {}; // book_key -> parsed JSON (cached after first fetch)
 let currentVerses = []; // array of {ref, words, bookKey, chapter, verseNum, isTitle}
 
@@ -521,8 +545,7 @@ function saveLastCitation(verses) {
   if (verses.length === 0) return;
   const first = verses[0];
   const last = verses[verses.length - 1];
-  const range = first.verseNum === last.verseNum ? '' : `-${last.verseNum}`;
-  try { localStorage.setItem(LAST_CITATION_KEY, `${first.bookKey} ${first.chapter}:${first.verseNum}${range}`); } catch (e) {}
+  try { localStorage.setItem(LAST_CITATION_KEY, formatCitation(first.bookKey, first.chapter, first.verseNum, last.verseNum)); } catch (e) {}
 }
 
 // ---------- Favorites ----------
@@ -560,7 +583,7 @@ function toggleFavorite() {
   if (idx >= 0) {
     list.splice(idx, 1);
   } else {
-    list.push({ key, label: input.value.trim() });
+    list.push({ key, label: formatCitation(parsed.bookKey, parsed.chapter, parsed.startVerse, parsed.endVerse) });
   }
   saveFavorites(list);
   renderFavoriteBtn();
@@ -592,10 +615,16 @@ function renderFavoritesPanel() {
 
     const openBtn = document.createElement('button');
     openBtn.className = 'favorite-open';
-    openBtn.textContent = fav.label;
+    // Re-derive the label so favourites saved earlier in lowercase
+    // (e.g. "genesis 1:1") also display with a capitalised book name.
+    const favParsed = parseCitation(fav.label);
+    const favLabel = favParsed
+      ? formatCitation(favParsed.bookKey, favParsed.chapter, favParsed.startVerse, favParsed.endVerse)
+      : fav.label;
+    openBtn.textContent = favLabel;
     openBtn.addEventListener('click', () => {
-      document.getElementById('citationInput').value = fav.label;
-      lookupVerse(fav.label);
+      document.getElementById('citationInput').value = favLabel;
+      lookupVerse(favLabel);
       favoritesPanel.classList.remove('open');
     });
 
@@ -667,7 +696,7 @@ async function lookupVerse(raw) {
     const bookData = await loadBook(bookKey);
     const chapData = bookData[String(chapter)];
     if (!chapData) {
-      lookupMsg.textContent = `That chapter wasn't found in ${bookKey}.`;
+      lookupMsg.textContent = `That chapter wasn't found in ${bookName(bookKey)}.`;
       return;
     }
     const bookLabel = raw.trim().split(/\s+\d/)[0]; // preserve user's book capitalization roughly
@@ -699,9 +728,10 @@ function renderAll() {
   board.style.display = 'block';
   verseContainer.innerHTML = '';
   const nonTitleVerses = currentVerses.filter(v => !v.isTitle);
-  const first = nonTitleVerses[0].ref;
-  const last = nonTitleVerses[nonTitleVerses.length - 1].ref;
-  refLabel.textContent = nonTitleVerses.length > 1 ? `${first} – ${last.split(' ').pop()}` : first;
+  const firstV = nonTitleVerses[0];
+  const lastV = nonTitleVerses[nonTitleVerses.length - 1];
+  const firstLabel = formatCitation(firstV.bookKey, firstV.chapter, firstV.verseNum);
+  refLabel.textContent = nonTitleVerses.length > 1 ? `${firstLabel} – ${lastV.verseNum}` : firstLabel;
   saveLastCitation(nonTitleVerses);
   renderFavoriteBtn();
 
@@ -712,7 +742,7 @@ function renderAll() {
     if (currentVerses.length > 1 && !verse.isTitle) {
       const label = document.createElement('div');
       label.className = 'verse-num-label';
-      label.textContent = verse.ref;
+      label.textContent = formatCitation(verse.bookKey, verse.chapter, verse.verseNum);
       block.appendChild(label);
     } else if (verse.isTitle) {
       const label = document.createElement('div');
@@ -944,7 +974,7 @@ async function showSingleVerse(bookKey, chapter, verseNum) {
   const bookData = await loadBook(bookKey);
   const chapData = bookData[String(chapter)];
   if (!chapData || !chapData[String(verseNum)]) {
-    lookupMsg.textContent = `Couldn't find ${bookKey} ${chapter}:${verseNum}.`;
+    lookupMsg.textContent = `Couldn't find ${formatCitation(bookKey, chapter, verseNum)}.`;
     return;
   }
   const verses = [];
@@ -954,7 +984,7 @@ async function showSingleVerse(bookKey, chapter, verseNum) {
   verses.push({ ref: `${bookKey} ${chapter}:${verseNum}`, words: chapData[String(verseNum)], bookKey, chapter, verseNum });
   currentVerses = verses;
   lookupMsg.textContent = '';
-  document.getElementById('citationInput').value = `${bookKey} ${chapter}:${verseNum}`;
+  document.getElementById('citationInput').value = formatCitation(bookKey, chapter, verseNum);
   renderAll();
 }
 
