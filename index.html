@@ -486,9 +486,19 @@ const FISH_KEY = 'fish';
 const FISH_BASE_PER_VERSE = 2;
 const awardedVerses = new Set();
 
+// A verse pays at the lowest multiplier of any toggle state it was worked in:
+// if transliteration or morphology was shown at any point while the current
+// passage was on screen, it counts as shown. Reset on every (re)render.
+let translitEverShown = true;
+let morphEverShown = true;
+
+function resetAidTracking() {
+  translitEverShown = document.getElementById('translitToggle').checked;
+  morphEverShown = document.getElementById('morphToggle').checked;
+}
+
 function fishPerVerse() {
-  const hidden = (document.getElementById('translitToggle').checked ? 0 : 1) +
-                 (document.getElementById('morphToggle').checked ? 0 : 1);
+  const hidden = (translitEverShown ? 0 : 1) + (morphEverShown ? 0 : 1);
   return FISH_BASE_PER_VERSE * Math.pow(2, hidden); // 2, 4, 4, 8
 }
 
@@ -560,12 +570,10 @@ function isWordCorrect(input, wordData) {
 
 // Called when the reader presses "Next verse". Every verse on screen that
 // hasn't been paid yet is graded on its current answers; a verse earns fish
-// only if all of its words are correct. Returns { fish, missed } where
-// `missed` is how many verses had at least one wrong/empty word.
+// only if all of its words are correct. Returns the total fish awarded.
 function awardFishOnSubmit() {
   const perVerse = fishPerVerse();
   let fish = 0;
-  let missed = 0;
   currentVerses.forEach((verse, vIdx) => {
     if (awardedVerses.has(verse.ref)) return;
     const inputs = Array.from(verseContainer.querySelectorAll(`input[data-v-idx="${vIdx}"]`));
@@ -576,12 +584,10 @@ function awardFishOnSubmit() {
       awardedVerses.add(verse.ref);
       fish += perVerse;
       bumpDaily('hbt');
-    } else {
-      missed++;
     }
   });
   if (fish > 0) addFish(fish);
-  return { fish, missed };
+  return fish;
 }
 
 // Remembers the passage on screen so the next visit resumes there.
@@ -770,6 +776,7 @@ async function lookupVerse(raw) {
 }
 
 function renderAll() {
+  resetAidTracking();
   board.style.display = 'block';
   verseContainer.innerHTML = '';
   const nonTitleVerses = currentVerses.filter(v => !v.isTitle);
@@ -1082,15 +1089,8 @@ async function goToAdjacentVerse(direction) {
 
 document.getElementById('nextBtn').addEventListener('click', async () => {
   // Grade first (the verse on screen is about to be replaced), then move on.
-  const { missed } = awardFishOnSubmit();
-  const before = currentVerses;
+  awardFishOnSubmit();
   await goToAdjacentVerse(1);
-  // showSingleVerse clears lookupMsg, so tell the reader after the move.
-  if (missed > 0 && currentVerses !== before) {
-    lookupMsg.textContent = missed === 1
-      ? 'No fish for the previous verse: not every word was correct.'
-      : `No fish for ${missed} of the previous verses: not every word was correct.`;
-  }
 });
 document.getElementById('prevBtn').addEventListener('click', () => goToAdjacentVerse(-1));
 
@@ -1108,10 +1108,12 @@ document.getElementById('citationInput').addEventListener('keydown', (e) => {
 
 document.getElementById('translitToggle').addEventListener('change', (e) => {
   board.classList.toggle('hide-translit', !e.target.checked);
+  if (e.target.checked) translitEverShown = true;
   updateScore();
 });
 document.getElementById('morphToggle').addEventListener('change', (e) => {
   board.classList.toggle('hide-morph', !e.target.checked);
+  if (e.target.checked) morphEverShown = true;
   updateScore();
 });
 
