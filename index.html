@@ -466,7 +466,9 @@ const scoreLine = document.getElementById('scoreLine');
 const lookupBtn = document.getElementById('lookupBtn');
 
 function normalize(str) {
-  let s = str.toLowerCase().trim().replace(/[.,;:!?'"()]/g, '').replace(/\s+/g, ' ');
+  // Punctuation (including "!") is ignored; trim afterwards so a gloss like
+  // "! swear" or "give !" doesn't leave a stray space behind.
+  let s = str.toLowerCase().replace(/[.,;:!?'"()]/g, '').replace(/\s+/g, ' ').trim();
   // article flexibility: "the heavens" and "heavens" are treated as equivalent
   s = s.replace(/^(the|a|an)\s+/, '');
   return s;
