@@ -565,7 +565,28 @@ function canBeBlank(wordData) {
 function isWordCorrect(input, wordData) {
   const userAns = normalize(input.value);
   return (userAns === '' && canBeBlank(wordData)) ||
-    wordData.answers.some(a => normalize(a) === userAns);
+    wordData.answers.some(a => answerMatches(a, userAns));
+}
+
+// Hebrew attaches possessives as suffixes (e.g. "of old age his"), but English
+// puts them before the noun ("of his old age"). So a possessive pronoun in an
+// accepted answer may sit at any position in the typed answer; the other words
+// must stay in order.
+const POSSESSIVES = new Set(['his', 'her', 'their', 'my', 'your', 'our', 'its']);
+
+function answerMatches(accepted, userAns) {
+  const norm = normalize(accepted);
+  if (norm === userAns) return true;
+  const tokens = norm.split(' ');
+  for (let i = 0; i < tokens.length; i++) {
+    if (!POSSESSIVES.has(tokens[i])) continue;
+    const rest = tokens.slice(0, i).concat(tokens.slice(i + 1));
+    for (let j = 0; j <= rest.length; j++) {
+      const moved = rest.slice(0, j).concat(tokens[i], rest.slice(j)).join(' ');
+      if (moved === userAns) return true;
+    }
+  }
+  return false;
 }
 
 // Called when the reader presses "Next verse". Every verse on screen that
