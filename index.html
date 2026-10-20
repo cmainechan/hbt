@@ -475,11 +475,22 @@ function normalize(str) {
 // ---------- Fish ----------
 // Shared wallet with the inn (cmainechan.github.io/inn/). Every page on the
 // site reads and writes the same "fish" key in localStorage.
-// 2 fish for each verse whose fields are all filled in (accuracy doesn't
-// matter). Each verse pays out once per page visit, so Reset can't be farmed.
+// Fish are paid out when the reader presses "Next verse", and only for verses
+// where every word is correct at that moment (answers can be freely corrected
+// beforehand). The payout scales with how much help is on screen:
+//   transliteration + morphology both shown -> 2 fish per verse
+//   either one hidden                       -> 4 fish per verse
+//   both hidden                             -> 8 fish per verse
+// Each verse pays out once per page visit, so Reset can't be farmed.
 const FISH_KEY = 'fish';
-const FISH_PER_VERSE = 2;
+const FISH_BASE_PER_VERSE = 2;
 const awardedVerses = new Set();
+
+function fishPerVerse() {
+  const hidden = (document.getElementById('translitToggle').checked ? 0 : 1) +
+                 (document.getElementById('morphToggle').checked ? 0 : 1);
+  return FISH_BASE_PER_VERSE * Math.pow(2, hidden); // 2, 4, 4, 8
+}
 
 // ---------- Daily progress ----------
 // Shared with the heb landing page dashboard (cmainechan.github.io/heb/).
@@ -539,22 +550,38 @@ function canBeBlank(wordData) {
   return wordData.answers.some(a => a === '-' || a === '(untranslated)');
 }
 
-// A verse is "filled in" when every field has text, except blank-able words,
-// which count once they've been checked (Enter / Check remaining).
-function maybeAwardFish(vIdx) {
-  const verse = currentVerses[vIdx];
-  if (!verse || awardedVerses.has(verse.ref)) return;
-  const inputs = verseContainer.querySelectorAll(`input[data-v-idx="${vIdx}"]`);
-  const filled = Array.from(inputs).every(inp => {
-    if (inp.value.trim() !== '') return true;
-    const w = verse.words[parseInt(inp.dataset.wIdx, 10)];
-    return canBeBlank(w) && inp.dataset.checked === 'true';
+// Grades whatever is currently typed in the field (no need to have pressed
+// Enter on it first), using the same rules as checkWord().
+function isWordCorrect(input, wordData) {
+  const userAns = normalize(input.value);
+  return (userAns === '' && canBeBlank(wordData)) ||
+    wordData.answers.some(a => normalize(a) === userAns);
+}
+
+// Called when the reader presses "Next verse". Every verse on screen that
+// hasn't been paid yet is graded on its current answers; a verse earns fish
+// only if all of its words are correct. Returns { fish, missed } where
+// `missed` is how many verses had at least one wrong/empty word.
+function awardFishOnSubmit() {
+  const perVerse = fishPerVerse();
+  let fish = 0;
+  let missed = 0;
+  currentVerses.forEach((verse, vIdx) => {
+    if (awardedVerses.has(verse.ref)) return;
+    const inputs = Array.from(verseContainer.querySelectorAll(`input[data-v-idx="${vIdx}"]`));
+    if (inputs.length === 0) return;
+    const perfect = inputs.every(inp =>
+      isWordCorrect(inp, verse.words[parseInt(inp.dataset.wIdx, 10)]));
+    if (perfect) {
+      awardedVerses.add(verse.ref);
+      fish += perVerse;
+      bumpDaily('hbt');
+    } else {
+      missed++;
+    }
   });
-  if (filled) {
-    awardedVerses.add(verse.ref);
-    addFish(FISH_PER_VERSE);
-    bumpDaily('hbt');
-  }
+  if (fish > 0) addFish(fish);
+  return { fish, missed };
 }
 
 // Remembers the passage on screen so the next visit resumes there.
@@ -933,9 +960,7 @@ document.addEventListener('click', (e) => {
 });
 
 function checkWord(input, revealDiv, wordData) {
-  const userAns = normalize(input.value);
-  const isCorrect = (userAns === '' && canBeBlank(wordData)) ||
-    wordData.answers.some(a => normalize(a) === userAns);
+  const isCorrect = isWordCorrect(input, wordData);
   input.classList.remove('correct', 'incorrect');
   if (isCorrect) {
     input.classList.add('correct');
@@ -949,7 +974,6 @@ function checkWord(input, revealDiv, wordData) {
   input.dataset.checked = 'true';
   input.dataset.correct = isCorrect ? 'true' : 'false';
   updateScore();
-  maybeAwardFish(parseInt(input.dataset.vIdx, 10));
 }
 
 function focusNext(currentInput) {
@@ -964,7 +988,7 @@ function updateScore() {
   const checked = inputs.filter(i => i.dataset.checked === 'true');
   const right = checked.filter(i => i.dataset.correct === 'true');
   const total = inputs.length;
-  scoreLine.textContent = `${right.length} / ${total} correct so far (${checked.length} checked)`;
+  scoreLine.textContent = `${right.length} / ${total} correct so far (${checked.length} checked) · worth ${fishPerVerse()} 🐟 per verse`;
 }
 
 document.getElementById('checkAllBtn').addEventListener('click', () => {
@@ -1056,7 +1080,18 @@ async function goToAdjacentVerse(direction) {
   await showSingleVerse(bookKey, chapter, verseNum);
 }
 
-document.getElementById('nextBtn').addEventListener('click', () => goToAdjacentVerse(1));
+document.getElementById('nextBtn').addEventListener('click', async () => {
+  // Grade first (the verse on screen is about to be replaced), then move on.
+  const { missed } = awardFishOnSubmit();
+  const before = currentVerses;
+  await goToAdjacentVerse(1);
+  // showSingleVerse clears lookupMsg, so tell the reader after the move.
+  if (missed > 0 && currentVerses !== before) {
+    lookupMsg.textContent = missed === 1
+      ? 'No fish for the previous verse: not every word was correct.'
+      : `No fish for ${missed} of the previous verses: not every word was correct.`;
+  }
+});
 document.getElementById('prevBtn').addEventListener('click', () => goToAdjacentVerse(-1));
 
 document.getElementById('resetBtn').addEventListener('click', renderAll);
@@ -1073,9 +1108,11 @@ document.getElementById('citationInput').addEventListener('keydown', (e) => {
 
 document.getElementById('translitToggle').addEventListener('change', (e) => {
   board.classList.toggle('hide-translit', !e.target.checked);
+  updateScore();
 });
 document.getElementById('morphToggle').addEventListener('change', (e) => {
   board.classList.toggle('hide-morph', !e.target.checked);
+  updateScore();
 });
 
 // Resume where the reader left off, or start at Genesis 1:1-5
