@@ -469,6 +469,10 @@ function normalize(str) {
   // Punctuation (including "!") is ignored; trim afterwards so a gloss like
   // "! swear" or "give !" doesn't leave a stray space behind.
   let s = str.toLowerCase().replace(/[.,;:!?'"()]/g, '').replace(/\s+/g, ' ').trim();
+  // vocative flexibility: "o my son" and "my son" are equivalent. Only dropped
+  // when other words remain, so a gloss that is just "o" still matches "o".
+  const words = s.split(' ');
+  if (words.length > 1) s = words.filter(w => w !== 'o').join(' ') || s;
   // article flexibility: "the heavens" and "heavens" are treated as equivalent
   s = s.replace(/^(the|a|an)\s+/, '');
   return s;
