@@ -580,10 +580,34 @@ function isWordCorrect(input, wordData) {
 // must stay in order.
 const POSSESSIVES = new Set(['his', 'her', 'their', 'my', 'your', 'our', 'its']);
 
+//
+// Likewise an object-pronoun suffix on a verb ("and she gave a drink him") is
+// English "and she gave him a drink", so a trailing object pronoun may move
+// earlier in the answer. It never moves in front of the leading "and" or into
+// the middle of a noun phrase, and a pronoun governed by a preposition
+// ("to him") stays put.
+const OBJECT_PRONOUNS = new Set(['him', 'her', 'them', 'me', 'us', 'you', 'it']);
+const PRONOUN_BLOCKERS = new Set([
+  'to', 'for', 'with', 'on', 'in', 'from', 'before', 'after', 'of', 'upon',
+  'against', 'by', 'at', 'like', 'into', 'under', 'between', 'toward',
+  'towards', 'than', 'through', 'over', 'among', 'beside', 'because'
+]);
+const NOUN_PHRASE_OPENERS = new Set(['a', 'an', 'the']);
+
 function answerMatches(accepted, userAns) {
   const norm = normalize(accepted);
   if (norm === userAns) return true;
   const tokens = norm.split(' ');
+  const last = tokens.length - 1;
+  if (last >= 2 && OBJECT_PRONOUNS.has(tokens[last]) &&
+      !PRONOUN_BLOCKERS.has(tokens[last - 1])) {
+    const rest = tokens.slice(0, last);
+    for (let j = 1; j < last; j++) {
+      if (j === 1 && rest[0] === 'and') continue;
+      if (NOUN_PHRASE_OPENERS.has(rest[j - 1])) continue;
+      if (rest.slice(0, j).concat(tokens[last], rest.slice(j)).join(' ') === userAns) return true;
+    }
+  }
   for (let i = 0; i < tokens.length; i++) {
     if (!POSSESSIVES.has(tokens[i])) continue;
     const rest = tokens.slice(0, i).concat(tokens.slice(i + 1));
