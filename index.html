@@ -593,12 +593,24 @@ const PRONOUN_BLOCKERS = new Set([
   'towards', 'than', 'through', 'over', 'among', 'beside', 'because'
 ]);
 const NOUN_PHRASE_OPENERS = new Set(['a', 'an', 'the']);
+const DIRECTION_WORDS = ['towards', 'toward', 'to'];
 
 function answerMatches(accepted, userAns) {
   const norm = normalize(accepted);
   if (norm === userAns) return true;
   const tokens = norm.split(' ');
   const last = tokens.length - 1;
+  // Directional he: "the house towards" is English "towards the house" (also
+  // "toward" / "to"). Articles are ignored on both sides for this comparison.
+  if (last >= 1 && tokens[last] === 'towards') {
+    const noArt = ws => ws.filter(w => !NOUN_PHRASE_OPENERS.has(w));
+    const body = noArt(tokens.slice(0, last));
+    const lead = body[0] === 'and' ? ['and'] : [];
+    const place = body.slice(lead.length);
+    const user = noArt(userAns.split(' '));
+    if (place.length && DIRECTION_WORDS.some(d =>
+        lead.concat(d, place).join(' ') === user.join(' '))) return true;
+  }
   if (last >= 2 && OBJECT_PRONOUNS.has(tokens[last]) &&
       !PRONOUN_BLOCKERS.has(tokens[last - 1])) {
     const rest = tokens.slice(0, last);
