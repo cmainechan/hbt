@@ -592,6 +592,12 @@ const PRONOUN_BLOCKERS = new Set([
   'against', 'by', 'at', 'like', 'into', 'under', 'between', 'toward',
   'towards', 'than', 'through', 'over', 'among', 'beside', 'because'
 ]);
+const SUBJECT_PRONOUNS = new Set(['he', 'she', 'i', 'we', 'you', 'they']);
+const SUBJECT_CONJUNCTIONS = new Set(['when', 'because', 'as']);
+const SUBJECT_FRONT_BLOCKERS = new Set([
+  'to', 'by', 'from', 'than', 'more', 'for', 'just', 'in', 'on', 'with', 'at',
+  'of', 'after', 'before', 'like', 'into', 'upon', 'against', 'been'
+]);
 const NOUN_PHRASE_OPENERS = new Set(['a', 'an', 'the']);
 const DIRECTION_WORDS = ['towards', 'toward', 'to'];
 
@@ -611,12 +617,28 @@ function answerMatches(accepted, userAns) {
     if (place.length && DIRECTION_WORDS.some(d =>
         lead.concat(d, place).join(' ') === user.join(' '))) return true;
   }
+  // Infinitive + pronominal suffix: "when took he" is English "when he took".
+  // A trailing subject pronoun may sit straight after the conjunction.
+  if (last >= 2 && SUBJECT_PRONOUNS.has(tokens[last])) {
+    const k = tokens.findIndex(t => SUBJECT_CONJUNCTIONS.has(t));
+    if (k >= 0 && k < last &&
+        tokens.slice(0, k + 1).concat(tokens[last], tokens.slice(k + 1, last)).join(' ') === userAns) return true;
+    // No conjunction: a finite verb ("have seen I", "brought up I") takes its
+    // subject in front. Infinitives, prepositions and -ing forms are left
+    // alone since there the pronoun is an object or has no fixed place.
+    if (k < 0) {
+      const s = tokens[0] === 'and' ? 1 : 0;
+      const lead = tokens[s];
+      if (s < last && !SUBJECT_FRONT_BLOCKERS.has(lead) && !lead.endsWith('ing') &&
+          tokens.slice(0, s).concat(tokens[last], tokens.slice(s, last)).join(' ') === userAns) return true;
+    }
+  }
   if (last >= 2 && OBJECT_PRONOUNS.has(tokens[last]) &&
       !PRONOUN_BLOCKERS.has(tokens[last - 1])) {
     const rest = tokens.slice(0, last);
     for (let j = 1; j < last; j++) {
       if (j === 1 && rest[0] === 'and') continue;
-      if (NOUN_PHRASE_OPENERS.has(rest[j - 1])) continue;
+      if (NOUN_PHRASE_OPENERS.has(rest[j - 1]) || rest[j - 1] === 'to') continue;
       if (rest.slice(0, j).concat(tokens[last], rest.slice(j)).join(' ') === userAns) return true;
     }
   }
