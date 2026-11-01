@@ -604,6 +604,9 @@ const DIRECTION_WORDS = ['towards', 'toward', 'to'];
 function answerMatches(accepted, userAns) {
   const norm = normalize(accepted);
   if (norm === userAns) return true;
+  // "here am I" and "here I am" are the same gloss of hinneni.
+  const hereIAm = s => s.replace(/\bhere am i\b/g, 'here i am');
+  if (hereIAm(norm) === hereIAm(userAns)) return true;
   const tokens = norm.split(' ');
   const last = tokens.length - 1;
   // Directional he: "the house towards" is English "towards the house" (also
